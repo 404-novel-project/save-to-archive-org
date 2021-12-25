@@ -244,7 +244,10 @@ class archiveOrg {
     }
     if (this._status === 200) {
       const moreThanOndDay =
-        ((this._recentVersionTime as number) - Date.now()) / 1000 / 3600 / 24 >
+        Math.abs((this._recentVersionTime as number) - Date.now()) /
+          1000 /
+          3600 /
+          24 >
         1;
       if (moreThanOndDay) {
         return await this.save();
