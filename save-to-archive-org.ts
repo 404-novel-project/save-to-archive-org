@@ -1,4 +1,3 @@
-import "https://deno.land/x/xhr/mod.ts";
 import { Application, Router, Context } from "https://deno.land/x/oak/mod.ts";
 import {
   SupabaseClient,
@@ -37,7 +36,10 @@ class Cache {
     if (!(SUPABASE_URL && SUPABASE_ANON_KEY)) {
       throw new Error("Can't get SUPABASE_URL or SUPABASE_ANON_KEY");
     }
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      // @ts-ignore:args
+      fetch: (...args) => fetch(...args),
+    });
     this.supabase = supabase;
     this.tableName = "archive-org";
   }
