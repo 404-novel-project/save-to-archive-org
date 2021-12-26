@@ -479,6 +479,7 @@ function log(
   const logObj = {
     time: new Date().toISOString(),
     level,
+    ip: ctx.request.ip,
     request: {
       url: ctx.request.url,
       method: ctx.request.method,
