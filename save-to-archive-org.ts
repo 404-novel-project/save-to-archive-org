@@ -306,15 +306,17 @@ class archiveOrg {
       let currentStatus = "pending";
       while (currentStatus === "pending") {
         await sleep(2000);
+        const headers = {};
+        Object.assign(headers, self.headers);
+        Object.assign(headers, {
+          Accept: "*/*",
+          "X-Requested-With": "XMLHttpRequest",
+          "Sec-Fetch-Dest": "empty",
+          "Sec-Fetch-Mode": "cors",
+          "Sec-Fetch-Site": "same-origin",
+        });
         const req = await fetch(getUrl(), {
-          headers: {
-            Accept: "*/*",
-            "X-Requested-With": "XMLHttpRequest",
-            "Sec-Fetch-Dest": "empty",
-            "Sec-Fetch-Mode": "cors",
-            "Sec-Fetch-Site": "same-origin",
-            ...self.headers,
-          },
+          headers,
           keepalive: true,
           referrer: `${self.baseUrl}/save/${self.url}`,
         });
