@@ -1,4 +1,9 @@
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { Application, Router, Context } from "https://deno.land/x/oak/mod.ts";
+import {
+  SupabaseClient,
+  createClient,
+} from "https://cdn.skypack.dev/@supabase/supabase-js";
 
 function urlTest(url: string) {
   try {
@@ -17,6 +22,88 @@ function sleep(ms: number) {
   });
 }
 
+interface dataBaseData {
+  original_url: string;
+  timestamp: number;
+  archive_url: string;
+}
+class Cache {
+  private supabase: SupabaseClient;
+  private tableName: string;
+
+  constructor() {
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+    const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY");
+    if (!(SUPABASE_URL && SUPABASE_ANON_KEY)) {
+      throw new Error("Can't get SUPABASE_URL or SUPABASE_ANON_KEY");
+    }
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    this.supabase = supabase;
+    this.tableName = "archive-org";
+  }
+
+  public async get(url: string): Promise<
+    | {
+        status: number;
+        firstVersionTime: number;
+        firstVersionUrl: string;
+        recentVersionTime: number;
+        recentVersionUrl: string;
+      }
+    | undefined
+  > {
+    // @ts-ignore: any
+    const { data, error } = await this.supabase
+      .from(this.tableName)
+      .select("original_url, timestamp, archive_url")
+      .eq("original_url", url);
+    if (error) {
+      console.error(error);
+      return undefined;
+    }
+    if ((data as dataBaseData[]).length === 0) {
+      return undefined;
+    }
+
+    console.log(`Read from cache ${url}.`);
+    const datas = (data as dataBaseData[])
+      .map((d) => {
+        d.timestamp = new Date(d.timestamp).getTime();
+        return d;
+      })
+      .sort((a: dataBaseData, b: dataBaseData) => {
+        return a.timestamp - b.timestamp;
+      });
+    const first = datas[0];
+    const recent = datas.slice(-1)[0];
+    const out = {
+      status: 200,
+      firstVersionTime: first.timestamp,
+      firstVersionUrl: first.archive_url,
+      recentVersionTime: recent.timestamp,
+      recentVersionUrl: recent.archive_url,
+    };
+    return out;
+  }
+
+  public async put({ original_url, timestamp, archive_url }: dataBaseData) {
+    console.log(`Put to cahce: ${original_url}, ${timestamp}, ${archive_url}`);
+    // @ts-ignore: any
+    const { data, error } = await this.supabase.from(this.tableName).insert([
+      {
+        original_url,
+        timestamp: new Date(timestamp).toISOString(),
+        archive_url,
+      },
+    ]);
+    if (error) {
+      console.error(error);
+      return undefined;
+    }
+    return data;
+  }
+}
+const cache = new Cache();
 class archiveOrg {
   protected baseUrl: string;
   protected url: string;
@@ -63,18 +150,26 @@ class archiveOrg {
       }
   > {
     const self = this;
+
+    const out = await readFromCache();
+    if (out !== undefined) {
+      return out;
+    }
+
     const first = `${self.baseUrl}/web/0/${self.url}`;
     const recent = `${self.baseUrl}/web/2/${self.url}`;
     await get(first, "first");
     await get(recent, "recent");
     if (self._status === 200) {
-      return {
+      const out = {
         status: self._status,
         firstVersionTime: self._firstVersionTime,
         firstVersionUrl: self._firstVersionUrl,
         recentVersionTime: self._recentVersionTime,
         recentVersionUrl: self._recentVersionUrl,
       };
+      putToCache(out as Out);
+      return out;
     } else {
       return {
         status: self._status,
@@ -105,6 +200,41 @@ class archiveOrg {
       }
       self._status = resp.status;
     }
+
+    interface Out {
+      status: number;
+      firstVersionTime: number;
+      firstVersionUrl: string;
+      recentVersionTime: number;
+      recentVersionUrl: string;
+    }
+    async function putToCache(out: Out) {
+      await cache.put({
+        original_url: self.url,
+        timestamp: out.firstVersionTime,
+        archive_url: out.firstVersionUrl,
+      });
+      if (out.recentVersionTime !== out.firstVersionTime) {
+        await cache.put({
+          original_url: self.url,
+          timestamp: out.recentVersionTime,
+          archive_url: out.recentVersionUrl,
+        });
+      }
+    }
+
+    async function readFromCache() {
+      const obj = await cache.get(self.url);
+      if (obj !== undefined) {
+        self._status = 200;
+        self._firstVersionTime = obj.firstVersionTime;
+        self._firstVersionUrl = obj.firstVersionUrl;
+        self._recentVersionTime = obj.recentVersionTime;
+        self._recentVersionUrl = obj.recentVersionUrl;
+      }
+
+      return obj;
+    }
   }
 
   public async save(): Promise<
@@ -120,8 +250,12 @@ class archiveOrg {
     | { status: number; archive_status: string; original_url: string }
   > {
     const self = this;
+
+    console.log(`Start save ${self.url}……`);
     const spnId = await submit();
-    return await wait(spnId);
+    const out = await wait(spnId);
+    putToCache(out as Out);
+    return out;
 
     async function submit(): Promise<string> {
       const url = `${self.baseUrl}/save/${self.url}`;
@@ -150,7 +284,18 @@ class archiveOrg {
         throw new Error(`extract spn id error! ${self.url}`);
       }
     }
-    async function wait(spn: string) {
+    async function wait(spn: string): Promise<
+      | {
+          status: number;
+          archive_status: string;
+          original_url: string | undefined;
+          first_archive: boolean | undefined;
+          timestamp: number;
+          archive_url: string;
+          duration_sec: number | undefined;
+        }
+      | { status: number; archive_status: string; original_url: string }
+    > {
       const getUrl = () => {
         const u = new URL(`${self.baseUrl}/save/status/${spn}`);
         u.searchParams.set("_t", Date.now().toString());
@@ -213,6 +358,25 @@ class archiveOrg {
       };
       console.log(JSON.stringify(result));
       return result;
+    }
+
+    interface Out {
+      status: number;
+      archive_status: string;
+      original_url: string;
+      first_archive: boolean;
+      timestamp: number;
+      archive_url: string;
+      duration_sec: number;
+    }
+    async function putToCache(out: Out) {
+      if (out.original_url && out.timestamp && out.archive_url) {
+        await cache.put({
+          original_url: out.original_url,
+          timestamp: out.timestamp,
+          archive_url: out.archive_url,
+        });
+      }
     }
   }
 
