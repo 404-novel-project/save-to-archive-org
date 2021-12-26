@@ -1,4 +1,4 @@
-import "https://deno.land/x/xhr@0.1.0/mod.ts";
+import "https://deno.land/x/xhr/mod.ts";
 import { Application, Router, Context } from "https://deno.land/x/oak/mod.ts";
 import {
   SupabaseClient,

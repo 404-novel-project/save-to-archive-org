@@ -1,4 +1,5 @@
 deps/
+registries/
 .vscode/
 gen/
 init.sh
