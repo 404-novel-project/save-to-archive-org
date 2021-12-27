@@ -101,6 +101,7 @@ function removeTrackParm(_url: string) {
     "dt_platform",
     "spm",
     "scm",
+    "dclid",
   ];
 
   const specific: Record<string, string[]> = {
@@ -119,6 +120,18 @@ function removeTrackParm(_url: string) {
       "unique_k",
       "from_source",
     ],
+    "douban.com": ["_i"],
+    "mp.weixin.qq.com": ["chksm", "key", "uin", "devicetype", "exportkey"],
+    "twitter.com": ["ref_src", "ref_url"],
+    "reddit.com": ["correlation_id", "ref_campaign", "ref_source", "ref"],
+    "weidian.com": ["distributorid", "wfr", "ifr", "share_relation", "source"],
+    "instagram.com": ["igshid"],
+    "steampowered.com": ["curator_clanid"],
+    "steamcommunity.com": ["curator_clanid"],
+    "linkedin.com": ["trkInfo", "originalReferer"],
+    "nicovideo.jp": ["cmnhd_ref", "ref"],
+    "www.baidu.com": ["rsv_pq", "rsv_t"],
+    "nytimes.com": ["impression_id"],
   };
 
   function findSpecial(host: string) {
