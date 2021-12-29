@@ -119,6 +119,7 @@ function removeTrackParm(_url: string) {
       "timestamp",
       "unique_k",
       "from_source",
+      "refer_from",
     ],
     "douban.com": ["_i"],
     "mp.weixin.qq.com": ["chksm", "key", "uin", "devicetype", "exportkey"],
