@@ -234,16 +234,33 @@ class Cache {
     return out;
   }
 
-  public async put({ original_url, timestamp, archive_url }: dataBaseData) {
-    console.log(`Put to cahce: ${original_url}, ${timestamp}, ${archive_url}`);
+  public async put(datas: dataBaseData[]) {
+    const commits = [];
+    for (const data of datas) {
+      const { original_url, timestamp, archive_url } = data;
+      if (
+        typeof original_url === "string" &&
+        typeof timestamp === "number" &&
+        typeof archive_url === "string"
+      ) {
+        console.log(
+          `Put to cahce: ${original_url}, ${timestamp}, ${archive_url}`
+        );
+        commits.push({
+          original_url,
+          timestamp: new Date(timestamp).toISOString(),
+          archive_url,
+        });
+      } else {
+        console.error(
+          `Put to cahce error: ${original_url}, ${timestamp}, ${archive_url}`
+        );
+      }
+    }
     // @ts-ignore: any
-    const { data, error } = await this.supabase.from(this.tableName).insert([
-      {
-        original_url,
-        timestamp: new Date(timestamp).toISOString(),
-        archive_url,
-      },
-    ]);
+    const { data, error } = await this.supabase
+      .from(this.tableName)
+      .insert(commits);
     if (error) {
       console.error(error);
       return undefined;
@@ -358,18 +375,21 @@ class archiveOrg {
       recentVersionUrl: string;
     }
     async function putToCache(out: Out) {
-      await cache.put({
-        original_url: self.url,
-        timestamp: out.firstVersionTime,
-        archive_url: out.firstVersionUrl,
-      });
+      const commits = [
+        {
+          original_url: self.url,
+          timestamp: out.firstVersionTime,
+          archive_url: out.firstVersionUrl,
+        },
+      ];
       if (out.recentVersionTime !== out.firstVersionTime) {
-        await cache.put({
+        commits.push({
           original_url: self.url,
           timestamp: out.recentVersionTime,
           archive_url: out.recentVersionUrl,
         });
       }
+      await cache.put(commits);
     }
 
     async function readFromCache() {
@@ -400,7 +420,7 @@ class archiveOrg {
   > {
     const self = this;
 
-    console.log(`Start save ${self.url}……`);
+    console.log(`Start save ${self.url}`);
     const spnId = await submit();
     const out = await wait(spnId);
     putToCache(out as Out);
@@ -522,11 +542,13 @@ class archiveOrg {
     }
     async function putToCache(out: Out) {
       if (out.original_url && out.timestamp && out.archive_url) {
-        await cache.put({
-          original_url: out.original_url,
-          timestamp: out.timestamp,
-          archive_url: out.archive_url,
-        });
+        await cache.put([
+          {
+            original_url: out.original_url,
+            timestamp: out.timestamp,
+            archive_url: out.archive_url,
+          },
+        ]);
       }
     }
   }
