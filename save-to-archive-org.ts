@@ -783,3 +783,5 @@ router.post("/save", save);
 const app = new Application();
 app.use(router.routes());
 await app.listen({ port: 8000 });
+
+app.addEventListener("error", (error) => console.error(error));
