@@ -585,7 +585,7 @@ class archiveOrg {
           1000 /
           3600 /
           24 >
-        1;
+        3;
       if (moreThanOndDay) {
         return await this.save();
       } else {
