@@ -1,8 +1,5 @@
 import { Application, Router, Context } from "https://deno.land/x/oak/mod.ts";
-import {
-  SupabaseClient,
-  createClient,
-} from "https://cdn.skypack.dev/@supabase/supabase-js";
+import { PostgrestClient } from "https://cdn.skypack.dev/@supabase/postgrest-js";
 
 function urlTest(url: string) {
   try {
@@ -173,7 +170,7 @@ interface dataBaseData {
   archive_url: string;
 }
 class Cache {
-  private supabase: SupabaseClient;
+  private postgrest: PostgrestClient;
   private tableName: string;
 
   constructor() {
@@ -182,11 +179,19 @@ class Cache {
     if (!(SUPABASE_URL && SUPABASE_ANON_KEY)) {
       throw new Error("Can't get SUPABASE_URL or SUPABASE_ANON_KEY");
     }
-    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      // @ts-ignore:args
-      fetch: (...args) => fetch(...args),
-    });
-    this.supabase = supabase;
+    const postgrest = new PostgrestClient(
+      `${SUPABASE_URL}/rest/v1`,
+      // @ts-ignore:types
+      {
+        // @ts-ignore:args
+        fetch: (...args) => fetch(...args),
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+      }
+    );
+    this.postgrest = postgrest;
     this.tableName = "archive-org";
   }
 
@@ -201,7 +206,7 @@ class Cache {
     | undefined
   > {
     // @ts-ignore: any
-    const { data, error } = await this.supabase
+    const { data, error } = await this.postgrest
       .from(this.tableName)
       .select("original_url, timestamp, archive_url")
       .eq("original_url", url);
@@ -258,7 +263,7 @@ class Cache {
       }
     }
     // @ts-ignore: any
-    const { data, error } = await this.supabase
+    const { data, error } = await this.postgrest
       .from(this.tableName)
       .insert(commits);
     if (error) {
