@@ -323,7 +323,10 @@ class archiveOrg {
     const self = this;
 
     const out = await readFromCache();
-    if (out !== undefined) {
+    if (
+      out !== undefined &&
+      Math.abs(out.recentVersionTime - Date.now()) / 1000 / 3600 / 24 < 1
+    ) {
       return out;
     }
 
