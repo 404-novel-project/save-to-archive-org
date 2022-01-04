@@ -328,17 +328,10 @@ class archiveOrg {
       ) {
         return outCache;
       }
-      self._firstVersionTime = outCache.firstVersionTime;
-      self._firstVersionUrl = outCache.firstVersionUrl;
     }
 
-    if (
-      self._firstVersionTime === undefined ||
-      self._firstVersionUrl === undefined
-    ) {
-      const first = `${self.baseUrl}/web/0/${self.url}`;
-      await get(first, "first");
-    }
+    const first = `${self.baseUrl}/web/0/${self.url}`;
+    await get(first, "first");
 
     const recent = `${self.baseUrl}/web/2/${self.url}`;
     await get(recent, "recent");
