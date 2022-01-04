@@ -320,18 +320,29 @@ class archiveOrg {
   > {
     const self = this;
 
-    const out = await readFromCache();
-    if (
-      out !== undefined &&
-      Math.abs(out.recentVersionTime - Date.now()) / 1000 / 3600 / 24 < 1
-    ) {
-      return out;
+    const outCache = await readFromCache();
+    if (outCache !== undefined) {
+      if (
+        Math.abs(outCache.recentVersionTime - Date.now()) / 1000 / 3600 / 24 <
+        1
+      ) {
+        return outCache;
+      }
+      self._firstVersionTime = outCache.firstVersionTime;
+      self._firstVersionUrl = outCache.firstVersionUrl;
     }
 
-    const first = `${self.baseUrl}/web/0/${self.url}`;
+    if (
+      self._firstVersionTime === undefined ||
+      self._firstVersionUrl === undefined
+    ) {
+      const first = `${self.baseUrl}/web/0/${self.url}`;
+      await get(first, "first");
+    }
+
     const recent = `${self.baseUrl}/web/2/${self.url}`;
-    await get(first, "first");
     await get(recent, "recent");
+
     if (self._status === 200) {
       const out = {
         status: self._status,
@@ -381,12 +392,17 @@ class archiveOrg {
       recentVersionUrl: string;
     }
     async function putToCache(out: Out) {
-      await cache.put({
-        original_url: self.url,
-        timestamp: out.firstVersionTime,
-        archive_url: out.firstVersionUrl,
-      });
-      if (out.recentVersionTime !== out.firstVersionTime) {
+      if (outCache?.firstVersionUrl !== out.firstVersionUrl) {
+        await cache.put({
+          original_url: self.url,
+          timestamp: out.firstVersionTime,
+          archive_url: out.firstVersionUrl,
+        });
+      }
+      if (
+        out.recentVersionTime !== out.firstVersionTime &&
+        outCache?.recentVersionUrl !== out.recentVersionUrl
+      ) {
         await cache.put({
           original_url: self.url,
           timestamp: out.recentVersionTime,
