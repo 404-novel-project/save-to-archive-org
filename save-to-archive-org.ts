@@ -636,6 +636,7 @@ function getBaseHeader() {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
     "Access-Control-Max-Age": "2073600",
+    "Access-Control-Allow-Headers": "Content-Type, x-requested-with",
     "X-Request-id": crypto.randomUUID(),
   };
 }
