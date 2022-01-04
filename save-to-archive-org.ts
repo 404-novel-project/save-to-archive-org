@@ -211,7 +211,7 @@ class Cache {
       .select("original_url, timestamp, archive_url")
       .eq("original_url", url);
     if (error) {
-      console.error(error);
+      console.error(`Get Data Error: ${url}`, error);
       return undefined;
     }
     if ((data as dataBaseData[]).length === 0) {
@@ -239,38 +239,36 @@ class Cache {
     return out;
   }
 
-  public async put(datas: dataBaseData[]) {
-    const commits = [];
-    for (const data of datas) {
-      const { original_url, timestamp, archive_url } = data;
-      if (
-        typeof original_url === "string" &&
-        typeof timestamp === "number" &&
-        typeof archive_url === "string"
-      ) {
-        console.log(
-          `Put to cahce: ${original_url}, ${timestamp}, ${archive_url}`
-        );
-        commits.push({
-          original_url,
-          timestamp: new Date(timestamp).toISOString(),
-          archive_url,
-        });
-      } else {
+  public async put(data: dataBaseData) {
+    const { original_url, timestamp, archive_url } = data;
+    if (
+      typeof original_url === "string" &&
+      typeof timestamp === "number" &&
+      typeof archive_url === "string"
+    ) {
+      console.log(
+        `Put to cahce: ${original_url}, ${timestamp}, ${archive_url}`
+      );
+      // @ts-ignore: any
+      const { data, error } = await this.postgrest.from(this.tableName).insert({
+        original_url,
+        timestamp: new Date(timestamp).toISOString(),
+        archive_url,
+      });
+      if (error) {
         console.error(
-          `Put to cahce error: ${original_url}, ${timestamp}, ${archive_url}`
+          `Put to cahce error: ${original_url}, ${timestamp}, ${archive_url}`,
+          error
         );
+        return;
       }
+      return data;
+    } else {
+      console.error(
+        `Put to cahce error: ${original_url}, ${timestamp}, ${archive_url}. Value Error.`
+      );
+      return;
     }
-    // @ts-ignore: any
-    const { data, error } = await this.postgrest
-      .from(this.tableName)
-      .insert(commits);
-    if (error) {
-      console.error(error);
-      return undefined;
-    }
-    return data;
   }
 }
 const cache = new Cache();
@@ -383,21 +381,18 @@ class archiveOrg {
       recentVersionUrl: string;
     }
     async function putToCache(out: Out) {
-      const commits = [
-        {
-          original_url: self.url,
-          timestamp: out.firstVersionTime,
-          archive_url: out.firstVersionUrl,
-        },
-      ];
+      await cache.put({
+        original_url: self.url,
+        timestamp: out.firstVersionTime,
+        archive_url: out.firstVersionUrl,
+      });
       if (out.recentVersionTime !== out.firstVersionTime) {
-        commits.push({
+        await cache.put({
           original_url: self.url,
           timestamp: out.recentVersionTime,
           archive_url: out.recentVersionUrl,
         });
       }
-      await cache.put(commits);
     }
 
     async function readFromCache() {
@@ -550,13 +545,11 @@ class archiveOrg {
     }
     async function putToCache(out: Out) {
       if (out.original_url && out.timestamp && out.archive_url) {
-        await cache.put([
-          {
-            original_url: out.original_url,
-            timestamp: out.timestamp,
-            archive_url: out.archive_url,
-          },
-        ]);
+        await cache.put({
+          original_url: out.original_url,
+          timestamp: out.timestamp,
+          archive_url: out.archive_url,
+        });
       }
     }
   }
@@ -752,7 +745,7 @@ async function save(ctx: Context) {
     try {
       responseBody = await archive.saveOnlyNone();
     } catch (err) {
-      console.error(err);
+      console.error("Http Save Error:", err);
       return error(ctx, 500);
     }
     ctx.response.headers = new Headers({
