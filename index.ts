@@ -1,5 +1,6 @@
 import { Application, Router, Context } from "https://deno.land/x/oak/mod.ts";
 import { PostgrestClient } from "https://cdn.skypack.dev/@supabase/postgrest-js";
+import { clean } from "https://github.com/yingziwu/url_bot/raw/master/src/removeTrackParam.ts";
 
 function urlTest(url: string) {
   try {
@@ -8,152 +9,6 @@ function urlTest(url: string) {
   } catch (error) {
     return false;
   }
-}
-
-function removeTrackParm(_url: string) {
-  // https://github.com/AdguardTeam/AdguardFilters/tree/master/TrackParamFilter/sections
-  const general = [
-    "nx_source",
-    "_zucks_suid",
-    "cmpid",
-    "asgtbndr",
-    "guccounter",
-    "guce_referrer",
-    "guce_referrer_sig",
-    "_openstat",
-    "action_object_map",
-    "action_ref_map",
-    "action_type_map",
-    "fb_action_ids",
-    "fb_action_types",
-    "fb_comment_id",
-    "fb_ref",
-    "fb_source",
-    "fbclid",
-    "xtor",
-    "utm_campaign",
-    "utm_channel",
-    "utm_cid",
-    "utm_content",
-    "utm_id",
-    "utm_medium",
-    "utm_name",
-    "utm_place",
-    "utm_pubreferrer",
-    "utm_reader",
-    "utm_referrer",
-    "utm_serial",
-    "utm_social",
-    "utm_social-type",
-    "utm_source",
-    "utm_swu",
-    "utm_term",
-    "utm_userid",
-    "utm_viz_id",
-    "utm_product",
-    "utm_campaignid",
-    "utm_ad",
-    "utm_brand",
-    "utm_emcid",
-    "utm_emmid",
-    "utm_umguk",
-    "gbraid",
-    "wbraid",
-    "gclsrc",
-    "gclid",
-    "yclid",
-    "dpg_source",
-    "dpg_campaign",
-    "dpg_medium",
-    "dpg_content",
-    "admitad_uid",
-    "adjust_tracker",
-    "adjust_adgroup",
-    "adjust_campaign",
-    "bsft_clkid",
-    "bsft_eid",
-    "bsft_mid",
-    "bsft_uid",
-    "bsft_aaid",
-    "bsft_ek",
-    "mtm_campaign",
-    "mtm_cid",
-    "mtm_content",
-    "mtm_group",
-    "mtm_keyword",
-    "mtm_medium",
-    "mtm_placement",
-    "mtm_source",
-    "pk_campaign",
-    "pk_medium",
-    "pk_source",
-    "_branch_match_id",
-    "vc_lpp",
-    "ml_subscriber",
-    "ml_subscriber_hash",
-    "rb_clickid",
-    "oly_anon_id",
-    "oly_enc_id",
-    "dt_dapp",
-    "dt_platform",
-    "spm",
-    "scm",
-    "dclid",
-  ];
-
-  const specific: Record<string, string[]> = {
-    "bilibili.com": [
-      "from",
-      "seid",
-      "share_source",
-      "spm_id_from",
-      "from_spm_id",
-      "share_medium",
-      "share_plat",
-      "share_session_id",
-      "share_source",
-      "share_tag",
-      "timestamp",
-      "unique_k",
-      "from_source",
-      "refer_from",
-    ],
-    "douban.com": ["_i"],
-    "mp.weixin.qq.com": ["chksm", "key", "uin", "devicetype", "exportkey"],
-    "twitter.com": ["ref_src", "ref_url"],
-    "reddit.com": ["correlation_id", "ref_campaign", "ref_source", "ref"],
-    "weidian.com": ["distributorid", "wfr", "ifr", "share_relation", "source"],
-    "instagram.com": ["igshid"],
-    "steampowered.com": ["curator_clanid"],
-    "steamcommunity.com": ["curator_clanid"],
-    "linkedin.com": ["trkInfo", "originalReferer"],
-    "nicovideo.jp": ["cmnhd_ref", "ref"],
-    "www.baidu.com": ["rsv_pq", "rsv_t"],
-    "nytimes.com": ["impression_id"],
-  };
-
-  function findSpecial(host: string) {
-    let lastPos = 0;
-    let domain = host;
-    while (lastPos >= 0) {
-      if (specific[domain]) {
-        return specific[domain];
-      }
-      lastPos = host.indexOf(".", lastPos + 1);
-      domain = host.slice(lastPos + 1);
-    }
-  }
-
-  const url = new URL(_url);
-  const host = url.hostname;
-  const search = url.searchParams;
-  general.forEach((s) => search.delete(s));
-  const special = findSpecial(host);
-  if (special) {
-    special.forEach((s) => search.delete(s));
-  }
-  url.hash = "";
-  return url.href;
 }
 
 function sleep(ms: number) {
@@ -299,10 +154,14 @@ class archiveOrg {
       "Sec-Fetch-User": "?1",
       ...headers,
     });
-    if (urlTest(url) && url.startsWith("http")) {
-      this.url = removeTrackParm(url);
+    this.url = url;
+  }
+
+  public async init() {
+    if (urlTest(this.url) && this.url.startsWith("http")) {
+      this.url = await clean(this.url);
     } else {
-      throw new Error("URL schema error! " + url);
+      throw new Error("URL schema error! " + this.url);
     }
   }
 
@@ -716,6 +575,7 @@ async function query(ctx: Context) {
   const params = ctx.request.url.searchParams;
   const url = params.get("url") as string;
   const archive = new archiveOrg(url, getRequestHeaders(ctx));
+  await archive.init();
   const body = await archive.query();
   ctx.response.headers = new Headers({
     "content-type": "application/json; charset=utf-8",
@@ -751,6 +611,7 @@ async function save(ctx: Context) {
     }
     const url = (body as saveBody).url;
     const archive = new archiveOrg(url, getRequestHeaders(ctx));
+    await archive.init();
     let responseBody;
     try {
       responseBody = await archive.saveOnlyNone();
